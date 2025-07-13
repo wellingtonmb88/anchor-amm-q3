@@ -4,7 +4,7 @@ use anchor_spl::{
     token::{Mint, Token, TokenAccount},
 };
 
-use crate::state::Config;
+use crate::states::Config;
 
 #[derive(Accounts)]
 #[instruction(seed:u64)]

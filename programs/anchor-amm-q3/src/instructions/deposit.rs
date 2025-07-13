@@ -5,7 +5,7 @@ use anchor_spl::{
 };
 use constant_product_curve::ConstantProduct;
 
-use crate::{error::AmmError, state::Config};
+use crate::{error::AmmError, states::Config};
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
