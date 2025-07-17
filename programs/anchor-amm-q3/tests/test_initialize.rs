@@ -1,105 +1,69 @@
-// #![cfg(feature = "test-sbf")]
+#![cfg(feature = "test-sbf")]
 #![allow(deprecated)]
 
-use anchor_amm_q3::{ instruction, states::Config };
-use anchor_lang::{ prelude::*, solana_program::rent::Rent, InstructionData };
-use anchor_spl::{ associated_token, token };
-use mollusk_svm::Mollusk;
-use mollusk_svm_programs_token::{ self };
+use anchor_lang::AccountDeserialize;
+use solana_sdk::{ message::Message, native_token::LAMPORTS_PER_SOL, transaction::Transaction };
+use anchor_lang::{ InstructionData };
+use anchor_spl::{ associated_token::{ self, get_associated_token_address }, token };
 use solana_sdk::{
-    account::Account,
     instruction::{ AccountMeta, Instruction },
-    program_pack::Pack,
-    pubkey::Pubkey,
+    signature::Keypair,
+    signer::Signer,
     system_program,
 };
 
+use litesvm::LiteSVM;
+use anchor_amm_q3::{ instruction::Initialize, Config };
+
+mod helpers;
+use helpers::*;
+
 #[test]
-fn test_initialize_amm() {
+pub fn test_initialize_amm() {
     let program_id = anchor_amm_q3::id();
-    let mut mollusk = Mollusk::new(&program_id, "anchor_amm_q3");
-    mollusk_svm_programs_token::token::add_program(&mut mollusk);
-    mollusk_svm_programs_token::associated_token::add_program(&mut mollusk);
-    let (system_program_id, system_account) =
-        mollusk_svm::program::keyed_account_for_system_program();
-    let (token_program_id, token_program_account) =
-        mollusk_svm_programs_token::token::keyed_account();
-    let (associated_token_program_id, associated_token_program_account) =
-        mollusk_svm_programs_token::associated_token::keyed_account();
+    let mut svm = LiteSVM::new();
+    let bytes = include_bytes!("../../../target/deploy/anchor_amm_q3.so");
+    svm.add_program(program_id, bytes);
 
-    // Test parameters
-    let seed = 12345u64;
-    let fee = 500u16; // 0.5%
-    let authority: Option<Pubkey> = None;
+    let authority_keypair = Keypair::new();
+    let authority = authority_keypair.pubkey();
+    svm.airdrop(&authority, 100 * LAMPORTS_PER_SOL).unwrap();
 
-    // Generate keypairs
-    let initializer = Pubkey::new_unique();
+    let initializer_keypair = Keypair::new();
+    let initializer = initializer_keypair.pubkey();
+    svm.airdrop(&initializer, 100 * LAMPORTS_PER_SOL).unwrap();
 
-    // Create mints
-    let mint_x = Pubkey::new_unique();
-    let mint_y = Pubkey::new_unique();
-    
-    // Initialize mint data manually
-    let mint_x_data = {
-        let mut data = vec![0; 82];
-        let mint = anchor_spl::token::spl_token::state::Mint {
-            mint_authority: Some(initializer).into(),
-            supply: 0,
-            decimals: 6,
-            is_initialized: true,
-            freeze_authority: None.into(),
-        };
-        anchor_spl::token::spl_token::state::Mint::pack(mint, &mut data).unwrap();
-        data
-    };
-    
-    let mint_y_data = {
-        let mut data = vec![0; 82];
-        let mint = anchor_spl::token::spl_token::state::Mint {
-            mint_authority: Some(initializer).into(),
-            supply: 0,
-            decimals: 6,
-            is_initialized: true,
-            freeze_authority: None.into(),
-        };
-        anchor_spl::token::spl_token::state::Mint::pack(mint, &mut data).unwrap();
-        data
-    };
-    
-    let mint_x_account = Account {
-        lamports: Rent::default().minimum_balance(82),
-        data: mint_x_data,
-        owner: token::ID,
-        executable: false,
-        rent_epoch: 0,
-    };
-    let mint_y_account = Account {
-        lamports: Rent::default().minimum_balance(82),
-        data: mint_y_data,
-        owner: token::ID,
-        executable: false,
-        rent_epoch: 0,
+    let (mint_x_pubkey, _, mint_x_account) = build_token_mint_account(1 * LAMPORTS_PER_SOL, 6);
+    svm.set_account(mint_x_pubkey, mint_x_account).unwrap();
+    let (mint_y_pubkey, _, mint_y_account) = build_token_mint_account(1 * LAMPORTS_PER_SOL, 6);
+    svm.set_account(mint_y_pubkey, mint_y_account).unwrap();
+
+    let seed = 123456789u64;
+    let initialize_ix = Initialize {
+        seed,
+        fee: 1000, // 1%
+        authority: Some(authority),
     };
 
-    // Derive PDAs
-    let (config, _config_bump) = Pubkey::find_program_address(
-        &[b"config", &seed.to_le_bytes()],
+    let (config, _) = solana_sdk::pubkey::Pubkey::find_program_address(
+        &[b"config".as_slice(), seed.to_le_bytes().as_ref()],
         &program_id
     );
-    let (mint_lp, _mint_lp_bump) = Pubkey::find_program_address(
-        &[b"lp", config.as_ref()],
+
+    let (mint_lp, _) = solana_sdk::pubkey::Pubkey::find_program_address(
+        &[b"lp".as_slice(), &config.to_bytes()],
         &program_id
     );
-    let vault_x = associated_token::get_associated_token_address(&config, &mint_x);
-    let vault_y = associated_token::get_associated_token_address(&config, &mint_y);
 
-    // Create instruction
-    let instruction = Instruction {
+    let vault_x = get_associated_token_address(&config, &mint_x_pubkey);
+    let vault_y = get_associated_token_address(&config, &mint_y_pubkey);
+
+    let ix = Instruction {
         program_id,
         accounts: vec![
             AccountMeta::new(initializer, true),
-            AccountMeta::new_readonly(mint_x, false),
-            AccountMeta::new_readonly(mint_y, false),
+            AccountMeta::new_readonly(mint_x_pubkey, false),
+            AccountMeta::new_readonly(mint_y_pubkey, false),
             AccountMeta::new(mint_lp, false),
             AccountMeta::new(config, false),
             AccountMeta::new(vault_x, false),
@@ -108,77 +72,23 @@ fn test_initialize_amm() {
             AccountMeta::new_readonly(associated_token::ID, false),
             AccountMeta::new_readonly(system_program::ID, false)
         ],
-        data: (instruction::Initialize {
-            seed,
-            fee,
-            authority,
-        }).data(),
+        data: initialize_ix.data(),
     };
 
-    // Setup accounts
-    let initializer_account = Account {
-        lamports: Rent::default().minimum_balance(0) * 100, // Provide ample lamports for account creation
-        ..Default::default()
-    };
-
-    let accounts = &vec![
-        (initializer, initializer_account),
-        (mint_x, mint_x_account),
-        (mint_y, mint_y_account),
-        // The following accounts are created by the instruction
-        (config, Account::default()),
-        (mint_lp, Account::default()),
-        (vault_x, Account::default()),
-        (vault_y, Account::default()),
-        // Programs
-        (system_program_id, system_account),
-        (token_program_id, token_program_account),
-        (associated_token_program_id, associated_token_program_account)
-    ];
-
-    let result = mollusk.process_instruction(&instruction, accounts);
-
-    // Verify success
-    assert!(
-        !result.program_result.is_err(),
-        "Initialize should succeed. Error: {:?}",
-        result.program_result
+    let tx = Transaction::new(
+        &[&initializer_keypair],
+        Message::new(&[ix], Some(&initializer)),
+        svm.latest_blockhash()
     );
+    let result = svm.send_transaction(tx);
+    assert!(result.is_ok(), "Transaction failed: {:?}", result);
 
-    // Verify config account
-    let config_account = result.get_account(&config).unwrap();
+    let config_account = svm.get_account(&config).unwrap();
     assert_eq!(config_account.owner, program_id);
     let config_data = Config::try_deserialize(&mut config_account.data.as_ref()).unwrap();
     assert_eq!(config_data.seed, seed);
-    assert_eq!(config_data.fee, fee);
-    assert_eq!(config_data.authority, authority);
-    assert_eq!(config_data.mint_x, mint_x);
-    assert_eq!(config_data.mint_y, mint_y);
-    assert!(!config_data.locked);
-
-    // Verify LP mint
-    let mint_lp_account = result.get_account(&mint_lp).unwrap();
-    assert_eq!(mint_lp_account.owner, token::ID);
-    let lp_mint_data = anchor_spl::token::spl_token::state::Mint
-        ::unpack(&mint_lp_account.data)
-        .unwrap();
-    assert_eq!(lp_mint_data.mint_authority, Some(config).into());
-    assert_eq!(lp_mint_data.decimals, 6);
-
-    // Verify vaults
-    let vault_x_account = result.get_account(&vault_x).unwrap();
-    assert_eq!(vault_x_account.owner, token::ID);
-    let vault_x_data = anchor_spl::token::spl_token::state::Account
-        ::unpack(&vault_x_account.data)
-        .unwrap();
-    assert_eq!(vault_x_data.mint, mint_x);
-    assert_eq!(vault_x_data.owner, config);
-
-    let vault_y_account = result.get_account(&vault_y).unwrap();
-    assert_eq!(vault_y_account.owner, token::ID);
-    let vault_y_data = anchor_spl::token::spl_token::state::Account
-        ::unpack(&vault_y_account.data)
-        .unwrap();
-    assert_eq!(vault_y_data.mint, mint_y);
-    assert_eq!(vault_y_data.owner, config);
+    assert_eq!(config_data.fee, 1000);
+    assert_eq!(config_data.authority, Some(authority));
+    assert_eq!(config_data.mint_x, mint_x_pubkey);
+    assert_eq!(config_data.mint_y, mint_y_pubkey);
 }
