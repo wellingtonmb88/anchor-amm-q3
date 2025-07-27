@@ -13,7 +13,10 @@ use solana_sdk::{ instruction::{ AccountMeta, Instruction }, pubkey::Pubkey, sys
 use solana_sdk::hash::Hash;
 
 use spl_associated_token_account_client::address::get_associated_token_address;
-use spl_associated_token_account_client::instruction::create_associated_token_account;
+use spl_associated_token_account_client::instruction::{
+    create_associated_token_account,
+    create_associated_token_account_idempotent,
+};
 use spl_token::instruction::TokenInstruction;
 use spl_token::{ ID as TOKEN_PROGRAM_ID, state::{ Mint as SPLMint } };
 
@@ -22,6 +25,7 @@ pub fn build_token_mint_account(
     supply: u64,
     decimals: u8
 ) -> (
+    Keypair, // Keypair for the mint
     Pubkey, // Mint public key
     SPLMint, // Mint state
     Account, // Account data for the mint
@@ -29,7 +33,7 @@ pub fn build_token_mint_account(
     let mint_rent = Rent::default().minimum_balance(SPLMint::LEN);
     let mint_keypair = Keypair::new();
     let mint = SPLMint {
-        mint_authority: COption::None,
+        mint_authority: COption::Some(mint_keypair.pubkey()),
         supply,
         decimals,
         is_initialized: true,
@@ -38,8 +42,10 @@ pub fn build_token_mint_account(
 
     let mut mint_b_bytes = [0u8; SPLMint::LEN];
     SPLMint::pack(mint, &mut mint_b_bytes).unwrap();
+    let pubkey = mint_keypair.pubkey();
     (
-        mint_keypair.pubkey(),
+        mint_keypair,
+        pubkey,
         mint,
         Account {
             lamports: mint_rent,
@@ -61,6 +67,7 @@ pub fn create_mint_transaction(
     Transaction, // Transaction to initialize the mint and associated token account
     Pubkey, // Mint public key
     Pubkey, // Associated token account public key
+    Keypair, // Mint keypair
 ) {
     let mint_keypair = Keypair::new();
     let mint_pubkey = mint_keypair.pubkey();
@@ -132,5 +139,44 @@ pub fn create_mint_transaction(
         ),
         latest_blockhash
     );
-    (tx, mint_pubkey, ata)
+    (tx, mint_pubkey, ata, mint_keypair)
+}
+
+/// Creates a transaction to mint tokens to a user's associated token account
+pub fn create_mint_to_transaction(
+    mint_authority: &Keypair,
+    mint: &Pubkey,
+    user: &Keypair,
+    amount: u64,
+    latest_blockhash: Hash
+) -> (
+    Transaction, // Transaction to initialize the mint and associated token account
+    Pubkey, // Associated token account public key
+) {
+    let ata = get_associated_token_address(&user.pubkey(), &mint);
+    let create_ata_ix = create_associated_token_account_idempotent(
+        &user.pubkey(),
+        &user.pubkey(),
+        &mint,
+        &TOKEN_PROGRAM_ID
+    );
+    let ser_mint_to_ix = (TokenInstruction::MintTo {
+        amount: amount,
+    }).pack();
+    let mint_to_ix = Instruction::new_with_bytes(
+        TOKEN_PROGRAM_ID,
+        &ser_mint_to_ix,
+        vec![
+            AccountMeta::new(*mint, false),
+            AccountMeta::new(ata, false),
+            AccountMeta::new_readonly(mint_authority.pubkey(), true)
+        ]
+    );
+
+    let tx = Transaction::new(
+        &[user, mint_authority],
+        Message::new(&[create_ata_ix, mint_to_ix], Some(&user.pubkey())),
+        latest_blockhash
+    );
+    (tx, ata)
 }

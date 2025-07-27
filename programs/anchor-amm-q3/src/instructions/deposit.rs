@@ -1,11 +1,11 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token::{mint_to, transfer, Mint, MintTo, Token, TokenAccount, Transfer},
+    token::{ mint_to, transfer, Mint, MintTo, Token, TokenAccount, Transfer },
 };
 use constant_product_curve::ConstantProduct;
 
-use crate::{error::AmmError, states::Config};
+use crate::{ error::AmmError, states::Config };
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
@@ -22,7 +22,7 @@ pub struct Deposit<'info> {
     #[account(
         has_one = mint_x,
         has_one = mint_y,
-        seeds =[b"config",config.seed.to_le_bytes().as_ref()],
+        seeds = [b"config", config.seed.to_le_bytes().as_ref()],
         bump = config.config_bump
     )]
     pub config: Account<'info, Config>,
@@ -57,7 +57,7 @@ pub struct Deposit<'info> {
         init_if_needed,
         payer = user,
         associated_token::mint = mint_lp,
-        associated_token::authority = user,
+        associated_token::authority = user
     )]
     pub user_lp: Account<'info, TokenAccount>,
 
@@ -71,9 +71,10 @@ impl<'info> Deposit<'info> {
         require!(self.config.locked == false, AmmError::PoolLocked);
         require!(amount > 0, AmmError::InvalidAmount);
 
-        let (x, y) = match self.mint_lp.supply == 0
-            && self.vault_x.amount == 0
-            && self.vault_y.amount == 0
+        let (x, y) = match
+            self.mint_lp.supply == 0 &&
+            self.vault_x.amount == 0 &&
+            self.vault_y.amount == 0
         {
             true => (max_x, max_y),
             false => {
@@ -82,9 +83,8 @@ impl<'info> Deposit<'info> {
                     self.vault_y.amount,
                     self.mint_lp.supply,
                     amount,
-                    6,
-                )
-                .unwrap();
+                    6
+                ).unwrap();
                 (amount.x, amount.y)
             }
         };
@@ -96,14 +96,8 @@ impl<'info> Deposit<'info> {
 
     pub fn deposit_tokens(&mut self, is_x: bool, amount: u64) -> Result<()> {
         let (from, to) = match is_x {
-            true => (
-                self.user_x.to_account_info(),
-                self.vault_x.to_account_info(),
-            ),
-            false => (
-                self.user_y.to_account_info(),
-                self.vault_y.to_account_info(),
-            ),
+            true => (self.user_x.to_account_info(), self.vault_x.to_account_info()),
+            false => (self.user_y.to_account_info(), self.vault_y.to_account_info()),
         };
 
         let cpi_program = self.token_program.to_account_info();
@@ -123,11 +117,7 @@ impl<'info> Deposit<'info> {
             to: self.user_lp.to_account_info(),
             authority: self.config.to_account_info(),
         };
-        let seeds = &[
-            &b"config"[..],
-            &self.config.seed.to_le_bytes(),
-            &[self.config.config_bump],
-        ];
+        let seeds = &[&b"config"[..], &self.config.seed.to_le_bytes(), &[self.config.config_bump]];
 
         let signer_seeds = &[&seeds[..]];
 

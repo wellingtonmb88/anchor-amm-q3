@@ -1,4 +1,4 @@
-#![cfg(feature = "test-sbf")]
+// #![cfg(feature = "test-sbf")]
 #![allow(deprecated)]
 
 use anchor_lang::AccountDeserialize;
@@ -33,9 +33,9 @@ pub fn test_initialize_amm() {
     let initializer = initializer_keypair.pubkey();
     svm.airdrop(&initializer, 100 * LAMPORTS_PER_SOL).unwrap();
 
-    let (mint_x_pubkey, _, mint_x_account) = build_token_mint_account(1 * LAMPORTS_PER_SOL, 6);
+    let (_, mint_x_pubkey, _, mint_x_account) = build_token_mint_account(1 * LAMPORTS_PER_SOL, 6);
     svm.set_account(mint_x_pubkey, mint_x_account).unwrap();
-    let (mint_y_pubkey, _, mint_y_account) = build_token_mint_account(1 * LAMPORTS_PER_SOL, 6);
+    let (_, mint_y_pubkey, _, mint_y_account) = build_token_mint_account(1 * LAMPORTS_PER_SOL, 6);
     svm.set_account(mint_y_pubkey, mint_y_account).unwrap();
 
     let seed = 123456789u64;

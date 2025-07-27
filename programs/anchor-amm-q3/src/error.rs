@@ -9,7 +9,7 @@ pub enum AmmError {
     OfferExpired,
     #[msg("This pool is locked.")]
     PoolLocked,
-    #[msg("Slippage exceeded.")]
+    #[msg("Slippage exceeded.")] 
     SlippageExceeded,
     #[msg("Overflow detected.")]
     Overflow,
