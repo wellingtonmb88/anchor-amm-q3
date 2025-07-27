@@ -181,13 +181,13 @@ fn test_deposit_liquidity() {
     let vault_x_data = SPLTokenAccount::unpack(&vault_x_info.data).unwrap();
     assert_eq!(vault_x_data.owner, config);
     assert_eq!(vault_x_data.mint, mint_x_pubkey);
-    // assert_eq!(vault_x_data.amount, 30 * LAMPORTS_PER_SOL);
+    assert_eq!(vault_x_data.amount, 30 * LAMPORTS_PER_SOL);
 
     let vault_y_info = svm.get_account(&vault_y).unwrap();
     let vault_y_data = SPLTokenAccount::unpack(&vault_y_info.data).unwrap();
     assert_eq!(vault_y_data.owner, config);
     assert_eq!(vault_y_data.mint, mint_y_pubkey);
-    // assert_eq!(vault_y_data.amount, 30 * LAMPORTS_PER_SOL);
+    assert_eq!(vault_y_data.amount, 30 * LAMPORTS_PER_SOL);
 
     let mint_lp_info = svm.get_account(&mint_lp).unwrap();
     let mint_lp_data = SPLMint::unpack(&mint_lp_info.data).unwrap();
