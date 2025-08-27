@@ -19,16 +19,16 @@ use solana_sdk::{
 use spl_token::{ state::{ Account as SPLTokenAccount, Mint as SPLMint } };
 
 use litesvm::LiteSVM;
-use anchor_amm_q3::instruction::{ Deposit, Initialize, Swap };
+use amm::instruction::{ Deposit, Initialize, Swap };
 
 mod helpers;
 use helpers::*;
 
 #[test]
 fn test_swap() {
-    let program_id = anchor_amm_q3::id();
+    let program_id = amm::id();
     let mut svm = LiteSVM::new();
-    let bytes = include_bytes!("../../../target/deploy/anchor_amm_q3.so");
+    let bytes = include_bytes!("../../../target/deploy/amm.so");
     svm.add_program(program_id, bytes);
 
     let authority_keypair = Keypair::new();

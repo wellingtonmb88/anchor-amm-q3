@@ -20,16 +20,16 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug unit tests in library 'anchor_amm_q3'",
+      "name": "Debug unit tests in library 'amm'",
       "cargo": {
         "args": [
           "test",
           "--no-run",
           "--lib",
-          "--package=anchor-amm-q3"
+          "--package=amm"
         ],
         "filter": {
-          "name": "anchor_amm_q3",
+          "name": "amm",
           "kind": "lib"
         }
       },
@@ -45,7 +45,7 @@
           "test",
           "--no-run",
           "--test=helpers",
-          "--package=anchor-amm-q3"
+          "--package=amm"
         ],
         "filter": {
           "name": "helpers",
@@ -64,7 +64,7 @@
           "test",
           "--no-run",
           "--test=test_deposit",
-          "--package=anchor-amm-q3"
+          "--package=amm"
         ],
         "filter": {
           "name": "test_deposit",
@@ -83,7 +83,7 @@
           "test",
           "--no-run",
           "--test=test_initialize",
-          "--package=anchor-amm-q3"
+          "--package=amm"
         ],
         "filter": {
           "name": "test_initialize",

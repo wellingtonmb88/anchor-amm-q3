@@ -1,35 +1,34 @@
 // #![cfg(feature = "test-sbf")]
 #![allow(deprecated)]
 
-use solana_sdk::{
-    account::Account,
-    message::Message,
-    native_token::LAMPORTS_PER_SOL,
-    program_option::COption,
-    program_pack::Pack,
-    transaction::Transaction,
+use anchor_lang::InstructionData;
+use anchor_spl::{
+    associated_token::{self, get_associated_token_address},
+    token::{self},
 };
-use anchor_lang::{ InstructionData };
-use anchor_spl::{ associated_token::{ self, get_associated_token_address }, token::{ self } };
 use solana_sdk::{
-    instruction::{ AccountMeta, Instruction },
+    account::Account, message::Message, native_token::LAMPORTS_PER_SOL, program_option::COption,
+    program_pack::Pack, transaction::Transaction,
+};
+use solana_sdk::{
+    instruction::{AccountMeta, Instruction},
     signature::Keypair,
     signer::Signer,
     system_program,
 };
-use spl_token::{ state::{ Account as SPLTokenAccount, AccountState, Mint as SPLMint } };
+use spl_token::state::{Account as SPLTokenAccount, AccountState, Mint as SPLMint};
 
+use amm::instruction::{Deposit, Initialize};
 use litesvm::LiteSVM;
-use anchor_amm_q3::{ instruction::{ Deposit, Initialize } };
 
 mod helpers;
 use helpers::*;
 
 #[test]
 fn test_deposit_liquidity() {
-    let program_id = anchor_amm_q3::id();
+    let program_id = amm::id();
     let mut svm = LiteSVM::new();
-    let bytes = include_bytes!("../../../target/deploy/anchor_amm_q3.so");
+    let bytes = include_bytes!("../../../target/deploy/amm.so");
     svm.add_program(program_id, bytes);
 
     let authority_keypair = Keypair::new();
@@ -40,15 +39,11 @@ fn test_deposit_liquidity() {
     let initializer = initializer_keypair.pubkey();
     svm.airdrop(&initializer, 100 * LAMPORTS_PER_SOL).unwrap();
 
-    let (mint_x_keypair, mint_x_pubkey, _, mint_x_account) = build_token_mint_account(
-        1 * LAMPORTS_PER_SOL,
-        6
-    );
+    let (mint_x_keypair, mint_x_pubkey, _, mint_x_account) =
+        build_token_mint_account(1 * LAMPORTS_PER_SOL, 6);
     svm.set_account(mint_x_pubkey, mint_x_account).unwrap();
-    let (mint_y_keypair, mint_y_pubkey, _, mint_y_account) = build_token_mint_account(
-        1 * LAMPORTS_PER_SOL,
-        6
-    );
+    let (mint_y_keypair, mint_y_pubkey, _, mint_y_account) =
+        build_token_mint_account(1 * LAMPORTS_PER_SOL, 6);
     svm.set_account(mint_y_pubkey, mint_y_account).unwrap();
 
     let seed = 123456789u64;
@@ -60,12 +55,12 @@ fn test_deposit_liquidity() {
 
     let (config, _) = solana_sdk::pubkey::Pubkey::find_program_address(
         &[b"config".as_slice(), seed.to_le_bytes().as_ref()],
-        &program_id
+        &program_id,
     );
 
     let (mint_lp, _) = solana_sdk::pubkey::Pubkey::find_program_address(
         &[b"lp".as_slice(), &config.to_bytes()],
-        &program_id
+        &program_id,
     );
 
     let vault_x = get_associated_token_address(&config, &mint_x_pubkey);
@@ -83,7 +78,7 @@ fn test_deposit_liquidity() {
             AccountMeta::new(vault_y, false),
             AccountMeta::new_readonly(token::ID, false),
             AccountMeta::new_readonly(associated_token::ID, false),
-            AccountMeta::new_readonly(system_program::ID, false)
+            AccountMeta::new_readonly(system_program::ID, false),
         ],
         data: initialize_ix.data(),
     };
@@ -91,15 +86,20 @@ fn test_deposit_liquidity() {
     let tx = Transaction::new(
         &[&initializer_keypair],
         Message::new(&[ix], Some(&initializer)),
-        svm.latest_blockhash()
+        svm.latest_blockhash(),
     );
     let result = svm.send_transaction(tx);
-    assert!(result.is_ok(), "Initialize Instruction Transaction failed: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "Initialize Instruction Transaction failed: {:?}",
+        result
+    );
 
     let depositer_keypair = Keypair::new();
     let depositer = depositer_keypair.pubkey();
     svm.airdrop(&depositer, 100 * LAMPORTS_PER_SOL).unwrap();
-    svm.airdrop(&mint_x_keypair.pubkey(), 100 * LAMPORTS_PER_SOL).unwrap();
+    svm.airdrop(&mint_x_keypair.pubkey(), 100 * LAMPORTS_PER_SOL)
+        .unwrap();
 
     // Mint token x to user
     let (mint_x_to_tx, mint_user_x) = create_mint_to_transaction(
@@ -107,7 +107,7 @@ fn test_deposit_liquidity() {
         &mint_x_pubkey,
         &depositer_keypair,
         1000 * LAMPORTS_PER_SOL, // 1000 tokens
-        svm.latest_blockhash()
+        svm.latest_blockhash(),
     );
     let result = svm.send_transaction(mint_x_to_tx);
     assert!(result.is_ok(), "Mint X Transaction failed: {:?}", result);
@@ -117,7 +117,7 @@ fn test_deposit_liquidity() {
         &mint_y_pubkey,
         &depositer_keypair,
         1000 * LAMPORTS_PER_SOL, // 1000 tokens
-        svm.latest_blockhash()
+        svm.latest_blockhash(),
     );
     let result = svm.send_transaction(mint_y_to_tx);
     assert!(result.is_ok(), "Mint Y Transaction failed: {:?}", result);
@@ -125,7 +125,7 @@ fn test_deposit_liquidity() {
     let mint_user_lp = get_associated_token_address(&depositer, &mint_lp);
 
     let deposit_ix = Deposit {
-        amount: 1000, // Amount of LP tokens to mint
+        amount: 1000,                 // Amount of LP tokens to mint
         max_x: 30 * LAMPORTS_PER_SOL, // 1000 tokensMax amount of X tokens to deposit
         max_y: 30 * LAMPORTS_PER_SOL, // 1000 tokensMax amount of Y tokens to deposit
     };
@@ -145,7 +145,7 @@ fn test_deposit_liquidity() {
             AccountMeta::new(mint_user_lp, false),
             AccountMeta::new_readonly(token::ID, false),
             AccountMeta::new_readonly(associated_token::ID, false),
-            AccountMeta::new_readonly(system_program::ID, false)
+            AccountMeta::new_readonly(system_program::ID, false),
         ],
         data: deposit_ix.data(),
     };
@@ -153,10 +153,14 @@ fn test_deposit_liquidity() {
     let tx = Transaction::new(
         &[&depositer_keypair],
         Message::new(&[ix], Some(&depositer)),
-        svm.latest_blockhash()
+        svm.latest_blockhash(),
     );
     let result = svm.send_transaction(tx);
-    assert!(result.is_ok(), "Deposit Instruction Transaction failed: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "Deposit Instruction Transaction failed: {:?}",
+        result
+    );
 
     let mint_user_x_info = svm.get_account(&mint_user_x).unwrap();
     let mint_user_x_data = SPLTokenAccount::unpack(&mint_user_x_info.data).unwrap();
@@ -198,9 +202,9 @@ fn test_deposit_liquidity() {
 
 #[test]
 fn test_deposit_liquidity_with_minted_lp() {
-    let program_id = anchor_amm_q3::id();
+    let program_id = amm::id();
     let mut svm = LiteSVM::new();
-    let bytes = include_bytes!("../../../target/deploy/anchor_amm_q3.so");
+    let bytes = include_bytes!("../../../target/deploy/amm.so");
     svm.add_program(program_id, bytes);
 
     let authority_keypair = Keypair::new();
@@ -211,15 +215,11 @@ fn test_deposit_liquidity_with_minted_lp() {
     let initializer = initializer_keypair.pubkey();
     svm.airdrop(&initializer, 100 * LAMPORTS_PER_SOL).unwrap();
 
-    let (mint_x_keypair, mint_x_pubkey, _, mint_x_account) = build_token_mint_account(
-        1 * LAMPORTS_PER_SOL,
-        6
-    );
+    let (mint_x_keypair, mint_x_pubkey, _, mint_x_account) =
+        build_token_mint_account(1 * LAMPORTS_PER_SOL, 6);
     svm.set_account(mint_x_pubkey, mint_x_account).unwrap();
-    let (mint_y_keypair, mint_y_pubkey, _, mint_y_account) = build_token_mint_account(
-        1 * LAMPORTS_PER_SOL,
-        6
-    );
+    let (mint_y_keypair, mint_y_pubkey, _, mint_y_account) =
+        build_token_mint_account(1 * LAMPORTS_PER_SOL, 6);
     svm.set_account(mint_y_pubkey, mint_y_account).unwrap();
 
     let seed = 123456789u64;
@@ -231,12 +231,12 @@ fn test_deposit_liquidity_with_minted_lp() {
 
     let (config, _) = solana_sdk::pubkey::Pubkey::find_program_address(
         &[b"config".as_slice(), seed.to_le_bytes().as_ref()],
-        &program_id
+        &program_id,
     );
 
     let (mint_lp, _) = solana_sdk::pubkey::Pubkey::find_program_address(
         &[b"lp".as_slice(), &config.to_bytes()],
-        &program_id
+        &program_id,
     );
 
     let vault_x = get_associated_token_address(&config, &mint_x_pubkey);
@@ -254,7 +254,7 @@ fn test_deposit_liquidity_with_minted_lp() {
             AccountMeta::new(vault_y, false),
             AccountMeta::new_readonly(token::ID, false),
             AccountMeta::new_readonly(associated_token::ID, false),
-            AccountMeta::new_readonly(system_program::ID, false)
+            AccountMeta::new_readonly(system_program::ID, false),
         ],
         data: initialize_ix.data(),
     };
@@ -262,15 +262,20 @@ fn test_deposit_liquidity_with_minted_lp() {
     let tx = Transaction::new(
         &[&initializer_keypair],
         Message::new(&[ix], Some(&initializer)),
-        svm.latest_blockhash()
+        svm.latest_blockhash(),
     );
     let result = svm.send_transaction(tx);
-    assert!(result.is_ok(), "Initialize Instruction Transaction failed: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "Initialize Instruction Transaction failed: {:?}",
+        result
+    );
 
     let depositer_keypair = Keypair::new();
     let depositer = depositer_keypair.pubkey();
     svm.airdrop(&depositer, 100 * LAMPORTS_PER_SOL).unwrap();
-    svm.airdrop(&mint_x_keypair.pubkey(), 100 * LAMPORTS_PER_SOL).unwrap();
+    svm.airdrop(&mint_x_keypair.pubkey(), 100 * LAMPORTS_PER_SOL)
+        .unwrap();
 
     // Mint token x to user
     let (mint_x_to_tx, mint_user_x) = create_mint_to_transaction(
@@ -278,7 +283,7 @@ fn test_deposit_liquidity_with_minted_lp() {
         &mint_x_pubkey,
         &depositer_keypair,
         1000 * LAMPORTS_PER_SOL, // 1000 tokens
-        svm.latest_blockhash()
+        svm.latest_blockhash(),
     );
     let result = svm.send_transaction(mint_x_to_tx);
     assert!(result.is_ok(), "Mint X Transaction failed: {:?}", result);
@@ -288,7 +293,7 @@ fn test_deposit_liquidity_with_minted_lp() {
         &mint_y_pubkey,
         &depositer_keypair,
         1000 * LAMPORTS_PER_SOL, // 1000 tokens
-        svm.latest_blockhash()
+        svm.latest_blockhash(),
     );
     let result = svm.send_transaction(mint_y_to_tx);
     assert!(result.is_ok(), "Mint Y Transaction failed: {:?}", result);
@@ -296,7 +301,7 @@ fn test_deposit_liquidity_with_minted_lp() {
     let mint_user_lp = get_associated_token_address(&depositer, &mint_lp);
 
     let deposit_ix = Deposit {
-        amount: 1000, // Amount of LP tokens to mint
+        amount: 1000,                    // Amount of LP tokens to mint
         max_x: 30000 * LAMPORTS_PER_SOL, // 1000 tokensMax amount of X tokens to deposit
         max_y: 30000 * LAMPORTS_PER_SOL, // 1000 tokensMax amount of Y tokens to deposit
     };
@@ -316,7 +321,7 @@ fn test_deposit_liquidity_with_minted_lp() {
             AccountMeta::new(mint_user_lp, false),
             AccountMeta::new_readonly(token::ID, false),
             AccountMeta::new_readonly(associated_token::ID, false),
-            AccountMeta::new_readonly(system_program::ID, false)
+            AccountMeta::new_readonly(system_program::ID, false),
         ],
         data: deposit_ix.data(),
     };
@@ -334,13 +339,17 @@ fn test_deposit_liquidity_with_minted_lp() {
 
     let mut vault_x_account_bytes = [0u8; SPLTokenAccount::LEN];
     SPLTokenAccount::pack(vault_x_account, &mut vault_x_account_bytes).unwrap();
-    svm.set_account(vault_x, Account {
-        lamports: 1_000_000_000,
-        data: vault_x_account_bytes.to_vec(),
-        owner: token::ID,
-        executable: false,
-        rent_epoch: 0,
-    }).unwrap();
+    svm.set_account(
+        vault_x,
+        Account {
+            lamports: 1_000_000_000,
+            data: vault_x_account_bytes.to_vec(),
+            owner: token::ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
 
     let vault_y_account = SPLTokenAccount {
         mint: mint_y_pubkey,
@@ -355,13 +364,17 @@ fn test_deposit_liquidity_with_minted_lp() {
 
     let mut vault_y_account_bytes = [0u8; SPLTokenAccount::LEN];
     SPLTokenAccount::pack(vault_y_account, &mut vault_y_account_bytes).unwrap();
-    svm.set_account(vault_y, Account {
-        lamports: 1_000_000_000,
-        data: vault_y_account_bytes.to_vec(),
-        owner: token::ID,
-        executable: false,
-        rent_epoch: 0,
-    }).unwrap();
+    svm.set_account(
+        vault_y,
+        Account {
+            lamports: 1_000_000_000,
+            data: vault_y_account_bytes.to_vec(),
+            owner: token::ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
 
     let lp_mint_account = SPLMint {
         mint_authority: COption::Some(config),
@@ -373,21 +386,29 @@ fn test_deposit_liquidity_with_minted_lp() {
 
     let mut lp_mint_account_bytes = [0u8; SPLMint::LEN];
     SPLMint::pack(lp_mint_account, &mut lp_mint_account_bytes).unwrap();
-    svm.set_account(mint_lp, Account {
-        lamports: 1_000_000_000,
-        data: lp_mint_account_bytes.to_vec(),
-        owner: token::ID,
-        executable: false,
-        rent_epoch: 0,
-    }).unwrap();
+    svm.set_account(
+        mint_lp,
+        Account {
+            lamports: 1_000_000_000,
+            data: lp_mint_account_bytes.to_vec(),
+            owner: token::ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
 
     let tx = Transaction::new(
         &[&depositer_keypair],
         Message::new(&[ix], Some(&depositer)),
-        svm.latest_blockhash()
+        svm.latest_blockhash(),
     );
     let result = svm.send_transaction(tx);
-    assert!(result.is_ok(), "Deposit Instruction Transaction failed: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "Deposit Instruction Transaction failed: {:?}",
+        result
+    );
 
     let mint_user_x_info = svm.get_account(&mint_user_x).unwrap();
     let mint_user_x_data = SPLTokenAccount::unpack(&mint_user_x_info.data).unwrap();
