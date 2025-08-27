@@ -42,3 +42,4 @@ next-env.d.ts
 
 *keypair.json
 wallet
+*wallet.json

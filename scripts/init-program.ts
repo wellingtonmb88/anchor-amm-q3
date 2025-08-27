@@ -9,7 +9,7 @@ import BN from "bn.js";
 import * as fs from "fs";
 
 // Import the IDL directly instead of using ES module import
-const ammIdl = JSON.parse(fs.readFileSync("../target/idl/amm.json", "utf8"));
+const ammIdl = JSON.parse(fs.readFileSync("./target/idl/amm.json", "utf8"));
 
 async function initializeProgram() {
   try {

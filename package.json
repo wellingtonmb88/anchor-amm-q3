@@ -2,7 +2,9 @@
   "license": "ISC",
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
-    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
+    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
+    "init-accounts": "ts-node scripts/init-accounts.ts",
+    "init-program": "ts-node scripts/init-program.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",

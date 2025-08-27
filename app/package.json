@@ -6,9 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint",
-    "init-accounts": "ts-node scripts/init-accounts.ts",
-    "init-program": "ts-node scripts/init-program.ts"
+    "lint": "eslint"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
