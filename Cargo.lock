@@ -91,7 +91,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "anchor-amm-q3"
+name = "amm"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",

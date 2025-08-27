@@ -2,27 +2,30 @@
 #![allow(deprecated)]
 
 use anchor_lang::AccountDeserialize;
-use solana_sdk::{ message::Message, native_token::LAMPORTS_PER_SOL, transaction::Transaction };
-use anchor_lang::{ InstructionData };
-use anchor_spl::{ associated_token::{ self, get_associated_token_address }, token };
+use anchor_lang::InstructionData;
+use anchor_spl::{
+    associated_token::{self, get_associated_token_address},
+    token,
+};
 use solana_sdk::{
-    instruction::{ AccountMeta, Instruction },
+    instruction::{AccountMeta, Instruction},
     signature::Keypair,
     signer::Signer,
     system_program,
 };
+use solana_sdk::{message::Message, native_token::LAMPORTS_PER_SOL, transaction::Transaction};
 
+use amm::{instruction::Initialize, Config};
 use litesvm::LiteSVM;
-use anchor_amm_q3::{ instruction::Initialize, Config };
 
 mod helpers;
 use helpers::*;
 
 #[test]
 pub fn test_initialize_amm() {
-    let program_id = anchor_amm_q3::id();
+    let program_id = amm::id();
     let mut svm = LiteSVM::new();
-    let bytes = include_bytes!("../../../target/deploy/anchor_amm_q3.so");
+    let bytes = include_bytes!("../../../target/deploy/amm.so");
     svm.add_program(program_id, bytes);
 
     let authority_keypair = Keypair::new();
@@ -47,12 +50,12 @@ pub fn test_initialize_amm() {
 
     let (config, _) = solana_sdk::pubkey::Pubkey::find_program_address(
         &[b"config".as_slice(), seed.to_le_bytes().as_ref()],
-        &program_id
+        &program_id,
     );
 
     let (mint_lp, _) = solana_sdk::pubkey::Pubkey::find_program_address(
         &[b"lp".as_slice(), &config.to_bytes()],
-        &program_id
+        &program_id,
     );
 
     let vault_x = get_associated_token_address(&config, &mint_x_pubkey);
@@ -70,7 +73,7 @@ pub fn test_initialize_amm() {
             AccountMeta::new(vault_y, false),
             AccountMeta::new_readonly(token::ID, false),
             AccountMeta::new_readonly(associated_token::ID, false),
-            AccountMeta::new_readonly(system_program::ID, false)
+            AccountMeta::new_readonly(system_program::ID, false),
         ],
         data: initialize_ix.data(),
     };
@@ -78,7 +81,7 @@ pub fn test_initialize_amm() {
     let tx = Transaction::new(
         &[&initializer_keypair],
         Message::new(&[ix], Some(&initializer)),
-        svm.latest_blockhash()
+        svm.latest_blockhash(),
     );
     let result = svm.send_transaction(tx);
     assert!(result.is_ok(), "Transaction failed: {:?}", result);
